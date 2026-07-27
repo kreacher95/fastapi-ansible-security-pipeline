@@ -4,31 +4,29 @@ from app import app
 client = TestClient(app)
 
 def test_health_check():
-    """Verify root endpoint returns 200 OK and expected status."""
     response = client.get("/")
     assert response.status_code == 200
-    assert "status" in response.json()
+    assert response.json()["status"] == "running smoothly"
 
-def test_encrypt_endpoint_success():
-    """Test successful encryption payload."""
-    response = client.post("/encrypt", json={"data": "Secret Message"})
+def test_generate_hash():
+    response = client.post("/hash", json={"text": "hello world"})
     assert response.status_code == 200
-    data = response.json()
-    assert data["original"] == "Secret Message"
-    assert "encrypted_token" in data
+    # Expected SHA-256 for 'hello world'
+    assert response.json()["hash"] == "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
 
-def test_encrypt_endpoint_empty_data():
-    """Test custom error handling when data is empty (400 Bad Request)."""
-    response = client.post("/encrypt", json={"data": ""})
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Data cannot be empty"
+def test_mask_pii():
+    sample_text = "SSN is 123-45-6789 and card is 1234-5678-9012-3456"
+    response = client.post("/mask-pii", json={"text": sample_text})
+    assert response.status_code == 200
+    assert "***-**-****" in response.json()["masked_text"]
+    assert "****-****-****-****" in response.json()["masked_text"]
 
-def test_hash_endpoint_success():
-    """Test SHA-256 hashing endpoint consistency."""
-    payload = {"data": "Test string"}
-    res1 = client.post("/hash", json=payload)
-    res2 = client.post("/hash", json=payload)
-    
-    assert res1.status_code == 200
-    # SHA-256 is deterministic: same input must equal same hash output
-    assert res1.json()["sha256"] == res2.json()["sha256"]
+def test_validate_password_weak():
+    response = client.post("/validate-password", json={"password": "short"})
+    assert response.status_code == 200
+    assert response.json()["is_strong"] is False
+
+def test_validate_password_strong():
+    response = client.post("/validate-password", json={"password": "P@ssword123!"})
+    assert response.status_code == 200
+    assert response.json()["is_strong"] is True
