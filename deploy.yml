@@ -1,0 +1,51 @@
+---
+- name: Deploy FastAPI Security Service
+  hosts: localhost
+  connection: local
+
+  tasks:
+    - name: Ensure Python virtual environment exists
+      command: python3 -m venv venv
+      args:
+        creates: venv
+
+    - name: Install Python dependencies from requirements.txt
+      command: ./venv/bin/python3 -m pip install -r requirements.txt
+
+    - name: Run Bandit Security Scan on Python code
+      command: ./venv/bin/bandit -r app.py
+      register: bandit_output
+
+    - name: Display Bandit Security Scan results
+      debug:
+        msg: "{{ bandit_output.stdout_lines }}"
+
+    - name: Run pytest test suite
+      command: ./venv/bin/pytest
+      register: pytest_output
+
+    - name: Display pytest results
+      debug:
+        msg: "{{ pytest_output.stdout_lines }}"
+
+    - name: Stop any existing server instance
+      shell: pkill -f uvicorn || true
+      ignore_errors: true
+
+    - name: Start FastAPI server in background
+      shell: nohup ./venv/bin/uvicorn app:app --host 127.0.0.1 --port 8000 > uvicorn.log 2>&1 &
+
+    - name: Pause briefly to let the server boot up
+      pause:
+        seconds: 3
+
+    - name: Test live API endpoint
+      uri:
+        url: "http://127.0.0.1:8000/"
+        method: GET
+        status_code: 200
+      register: api_response
+
+    - name: Display API response
+      debug:
+        msg: "{{ api_response.json }}"
